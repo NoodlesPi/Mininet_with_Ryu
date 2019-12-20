@@ -23,14 +23,14 @@ from ryu.lib.packet import packet, ether_types
 from ryu.lib.packet import ethernet, arp, icmp
 
 from ofctl_utils import OfCtl, VLANID_NONE
-
+import time
 from topo_manager_example import TopoManager
 
 import numpy as np
 
 class ShortestPathSwitching(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_0.OFP_VERSION]
-
+    flag = True
 
 
     def update(self):
@@ -51,6 +51,8 @@ class ShortestPathSwitching(app_manager.RyuApp):
                 for j in range(1, self.switchNum+1):
                     if self.switch_to[i][k] + self.switch_to[k][j] < self.switch_to[i][j]:
                         self.switch_to[i][j] = self.switch_to[i][k] + self.switch_to[k][j]
+
+        self.set_flowtable()
 
 
     def __init__(self, *args, **kwargs):
@@ -93,7 +95,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
     @set_ev_cls(event.EventSwitchEnter)
     def handle_switch_add(self, ev):
         """
-        Event handler indicating a switch has come online.
+        Event handler indicating a switch has come onlin            self.logger.info(paths)e.
         """
         switch = ev.switch
         dp = switch.dp
@@ -250,6 +252,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
         """
        EventHandler for PacketIn messages
         """
+
         msg = ev.msg
 
         # In OpenFlow, switches are called "datapaths".  Each switch gets its own datapath ID.
@@ -267,18 +270,17 @@ class ShortestPathSwitching(app_manager.RyuApp):
             arp_msg = pkt.get_protocols(arp.arp)[0]
 
             if arp_msg.opcode == arp.ARP_REQUEST:
-
                 self.logger.warning("Received ARP REQUEST on switch%d/%d:  Who has %s?  Tell %s",
                                     dp.id, in_port, arp_msg.dst_ip, arp_msg.src_mac)
 
                 # TODO:  Generate a *REPLY* for this request based on your switch state
                 mac = self.hIp_hMac[arp_msg.dst_ip]
-                port = self.sMac_sPort[self.hMac_sMac[mac]]
-                paths = self.get_path(arp_msg.src_ip,arp_msg.dst_ip)
-                self.logger.info(paths)
-                for tuple in paths:
-                    self.delete_forwarding_rule(self.sId_sWitch[tuple[0]], mac)
-                    self.add_forwarding_rule(self.sId_sWitch[tuple[0]], mac, tuple[1])
+                # paths = self.get_path(arp_msg.src_ip,arp_msg.dst_ip)
+                # self.logger.info(paths)
+                # for tuple in paths:
+                #     self.delete_forwarding_rule(self.sId_sWitch[tuple[0]], mac)
+                #     self.add_forwarding_rule(self.sId_sWitch[tuple[0]], mac, tuple[1])
+
 
                 ofctl.send_arp(
                     vlan_id=VLANID_NONE,
@@ -338,4 +340,17 @@ class ShortestPathSwitching(app_manager.RyuApp):
         lastPort = self.sMac_sPort[endMac]
         ans_list.append((lastNum,lastPort))
         return ans_list
+
+    def set_flowtable(self):
+        ipList = [] #所有ip
+        for key in self.hIp_hMac:
+            ipList.append(key)
+        self.logger.info(ipList)
+
+        for ip1 in ipList:
+            for ip2 in ipList:
+                if ip1 != ip2:
+                    tuple_list = self.get_path(ip1,ip2)
+                    for tuple in tuple_list:
+                        self.add_forwarding_rule(self.sId_sWitch[tuple[0]], self.hIp_hMac[ip2], tuple[1])
 

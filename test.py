@@ -352,5 +352,6 @@ class ShortestPathSwitching(app_manager.RyuApp):
                 if ip1 != ip2:
                     tuple_list = self.get_path(ip1,ip2)
                     for tuple in tuple_list:
+                        self.delete_forwarding_rule(self.sId_sWitch[tuple[0]], self.hIp_hMac[ip2)
                         self.add_forwarding_rule(self.sId_sWitch[tuple[0]], self.hIp_hMac[ip2], tuple[1])
 

@@ -134,9 +134,10 @@ class ShortestPathSwitching(app_manager.RyuApp):
         realNum = self.switch_num_real[switch.dp.id]
         self.leaveSwitchList.append(realNum)
 
-        for mac in self.numInfo:
-            del self.mac_mac[self.mac_mac[mac]]
-            del self.mac_mac[mac]
+        for mac in self.numInfo[realNum]:
+            if mac in self.mac_mac:
+                del self.mac_mac[self.mac_mac[mac]]
+                del self.mac_mac[mac]
 
         # TODO:  Update network topology and flow rules
         self.update()
@@ -198,9 +199,10 @@ class ShortestPathSwitching(app_manager.RyuApp):
                           src_port.dpid, src_port.port_no, src_port.hw_addr,
                           dst_port.dpid, dst_port.port_no, dst_port.hw_addr)
         #########################################################################################################
-
-        del self.mac_mac[src_port.hw_addr]
-        del self.mac_mac[dst_port.hw_addr]
+        if src_port.hw_addr in self.mac_mac:
+            del self.mac_mac[src_port.hw_addr]
+        if dst_port.hw_addr in self.mac_mac:
+            del self.mac_mac[dst_port.hw_addr]
 
         #########################################################################################################
         # TODO:  Update network topology and flow rules
@@ -228,6 +230,12 @@ class ShortestPathSwitching(app_manager.RyuApp):
         #########################################################################################################
         # TODO:  Update network topology and flow rules
         self.update()
+
+    def delete_forwarding_rule(self, datapath, dl_dst):
+        ofctl = OfCtl.factory(datapath, self.logger)
+
+        match = datapath.ofproto_parser.OFPMatch(dl_dst=dl_dst)
+        ofctl.delete_flow(cookie=0, priority=0, match=match)
 
     def add_forwarding_rule(self, datapath, dl_dst, port):
         ofctl = OfCtl.factory(datapath, self.logger)
@@ -269,6 +277,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
                 paths = self.get_path(arp_msg.src_ip,arp_msg.dst_ip)
                 self.logger.info(paths)
                 for tuple in paths:
+                    self.delete_forwarding_rule(self.sId_sWitch[tuple[0]], mac)
                     self.add_forwarding_rule(self.sId_sWitch[tuple[0]], mac, tuple[1])
 
                 ofctl.send_arp(
